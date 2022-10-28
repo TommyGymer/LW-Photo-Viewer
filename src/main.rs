@@ -1,221 +1,83 @@
-//make use of https://crates.io/crates/image to decode main image formats
-//make use of https://github.com/pedrocr/rawloader/ for decoding of RAW images
-//make use of https://docs.rs/druid/0.7.0/druid/widget/struct.Image.html the druid image widget for displaying images
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")] // hide console window on Windows in release
 
-#![allow(unused)]
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-use beryllium::{
-        event::Event,
-        gl_window::{GlAttr, GlContextFlags, GlProfile},
-        init::{InitFlags, Sdl},
-        window::WindowFlags,
-        SdlResult,
-    };
-use glitz::{println_gl_debug_callback, GlFns, GL_COLOR_BUFFER_BIT, gl_types::*, gl_constants::*};
-//use ogl33::*;
-use core::{
-    convert::{TryInto},
-    mem::{size_of, size_of_val},
-  };
-use bytemuck;
-use std::time::{Duration, Instant};
-use image::io::Reader as ImageReader;
-use zstring::zstr;
-
-mod gl_safe;
-
-//pos, uv
-type Vertex = [f32; 3 + 2];
-type TriIndexes = [u32; 3];
-
-//triangle data
-// const TRIANGLE: [Vertex; 3] =
-//     [
-//         [-0.5, -0.5, 0.0],
-//         [0.5, -0.5, 0.0],
-//         [0.0, 0.5, 0.0]
-//     ];
-
-const RECTANGLE: [Vertex; 4] = 
-    [
-        [1.0, 1.0, 0.0, 1.0, 0.0],
-        [1.0, -1.0, 0.0, 1.0, 1.0],
-        [-1.0, -1.0, 0.0, 0.0, 1.0],
-        [-1.0, 1.0, 0.0, 0.0, 0.0]
-    ];
-
-const INDICES: [TriIndexes; 2] = [
-    [0, 1, 3],
-    [1, 2, 3]
-];
-
-//vertex shader program
-const VERT_SHADER: &str = r#"#version 330 core
-  layout (location = 0) in vec3 pos;
-  layout (location = 1) in vec2 uv;
-
-  out vec2 frag_uv;
-
-  void main() {
-    gl_Position = vec4(pos, 1.0);
-    frag_uv = uv;
-  }
-"#;
-
-const FRAG_SHADER: &str = r#"#version 330 core
-  uniform sampler2D tx;
-
-  in vec2 frag_uv;
-
-  out vec4 final_colour;
-
-  void main() {
-    final_colour = texture(tx, frag_uv);
-  }
-"#;
+// use image::io::Reader as ImageReader;
+use eframe::egui;
+use egui_extras::RetainedImage;
+use egui::ColorImage;
+use egui::Vec2;
+use std::path::Path;
 
 fn main() {
-    let bitmap = {
-        let data = ImageReader::open("C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg").unwrap();
-        let img = data.decode().unwrap();
-        img.into_rgba8()
+    let options = eframe::NativeOptions {
+        initial_window_size: Some(egui::vec2(1024.0, 900.0)),
+        ..Default::default()
     };
-    println!("Image loaded");
-
-    let sdl = Sdl::init(InitFlags::EVERYTHING).expect("couldn't start SDL");
-    sdl.gl_set_attribute(GlAttr::MajorVersion, 3).unwrap();
-    sdl.gl_set_attribute(GlAttr::MinorVersion, 3).unwrap();
-    sdl.gl_set_attribute(GlAttr::Profile, GlProfile::Core as _).unwrap();
-    #[cfg(target_os = "macos")]
-    {
-        sdl
-        .gl_set_attribute(SdlGlAttr::Flags, ContextFlag::ForwardCompatible)
-        .unwrap();
-    }
-
-    println!("SDL loaded");
-
-    let win = sdl
-        .create_gl_window(
-            zstr!("Hello Window"),
-            Some((0, 0)),
-            (800, 600),
-            WindowFlags::RESIZABLE,
-        )
-        .expect("couldn't make a window and context");
-
-    println!("Window created");
-
-    let gl = unsafe { GlFns::from_loader(&|zs| win.get_proc_address(zs)).unwrap() };
-    if win.is_extension_supported(zstr!("GL_KHR_debug")) {
-        println!("Activating the debug callback...");
-        unsafe { gl.DebugMessageCallback(Some(println_gl_debug_callback), 0 as *const _) };
-    }
-
-    println!("gl loaded");
-
-    let vao = gl_safe::VertexArray::new(&gl).expect("Couldn't make a VAO");
-    vao.bind(&gl);
-
-    //vertex buffer
-    let vbo = gl_safe::Buffer::new(&gl).expect("Couldn't make a VBO");
-    vbo.bind(&gl, gl_safe::BufferType::Array);
-    gl_safe::buffer_data(
-        &gl,
-        gl_safe::BufferType::Array,
-        bytemuck::cast_slice(&RECTANGLE),
-        GL_STATIC_DRAW,
+    
+    eframe::run_native(
+        "Show an image with eframe/egui",
+        options,
+        Box::new(|_cc| Box::new(MyApp::default())),
     );
+}
 
-    let ebo = gl_safe::Buffer::new(&gl).expect("Couldn't make the element buffer");
-    ebo.bind(&gl, gl_safe::BufferType::ElementArray);
-    gl_safe::buffer_data(
-        &gl,
-        gl_safe::BufferType::ElementArray,
-        bytemuck::cast_slice(&INDICES),
-        GL_STATIC_DRAW,
-    );
+struct MyApp {
+    image: RetainedImage,
+}
 
-    println!("Buffer objects created");
-
-    let mut texture = 0;
-    unsafe {
-        gl.GenTextures(1, &mut texture);
-        gl.BindTexture(GL_TEXTURE_2D, texture);
-        gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT as GLint);
-        gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT as GLint);
-        gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR as GLint);
-        gl.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR as GLint);
-        gl.TexImage2D(
-            GL_TEXTURE_2D,
-            0,
-            GL_RGBA as GLint,
-            bitmap.width().try_into().unwrap(),
-            bitmap.height().try_into().unwrap(),
-            0,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            bitmap.as_ptr().cast(),
-        );
-        gl.GenerateMipmap(GL_TEXTURE_2D);
-    }
-
-    println!("Texture loaded");
-
-    unsafe {
-        //define the data as vertex data
-        gl.VertexAttribPointer(
-            0,
-            3,
-            GL_FLOAT,
-            GL_FALSE.try_into().unwrap(),
-            size_of::<Vertex>().try_into().unwrap(),
-            0 as *const _,
-        );
-        gl.EnableVertexAttribArray(0);
-
-        gl.VertexAttribPointer(
-            1,
-            2,
-            GL_FLOAT,
-            GL_FALSE.try_into().unwrap(),
-            size_of::<Vertex>().try_into().unwrap(),
-            size_of::<[f32; 3]>() as *const _,
-        );
-        gl.EnableVertexAttribArray(1);
-    }
-
-    println!("Attribs set");
-
-    //shader program
-    let shader_program = gl_safe::ShaderProgram::from_vert_frag(&gl, VERT_SHADER, FRAG_SHADER).unwrap();
-    println!("aaa");
-    shader_program.use_program(&gl);
-
-    println!("Shader program loaded");
-
-    gl_safe::clear_colour(&gl, 0.2, 0.3, 0.3, 1.0);
-
-    win.set_swap_interval(1);
-
-    println!("Loop has started");
-
-    'main_loop: loop {
-        // handle events this frame
-        while let Some(event) = sdl.poll_event() {
-            match event {
-            Event::Quit => break 'main_loop,
-            _ => (),
-            }
+impl Default for MyApp {
+    fn default() -> Self {
+        Self {
+            image: RetainedImage::from_color_image(
+                "image",
+                load_image_from_path(Path::new("C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg")).unwrap(),
+            ),
         }
+    }
+}
 
-        unsafe {
-            gl.Clear(GL_COLOR_BUFFER_BIT);
-            gl.DrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 as *const _);
-            //glDrawArrays(GL_TRIANGLES, 0, 3);
-        }
+fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
+    let image = image::io::Reader::open(path)?.decode()?;
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    Ok(egui::ColorImage::from_rgba_unmultiplied(
+        size,
+        pixels.as_slice(),
+    ))
+}
 
-        win.swap_backbuffer();
+fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageError> {
+    let image = image::load_from_memory(image_data)?;
+    let size = [image.width() as _, image.height() as _];
+    let image_buffer = image.to_rgba8();
+    let pixels = image_buffer.as_flat_samples();
+    Ok(ColorImage::from_rgba_unmultiplied(
+        size,
+        pixels.as_slice(),
+    ))
+}
+
+impl eframe::App for MyApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.centered_and_justified(|ui| {
+                ui.add(
+                    egui::Image::new(
+                        self.image.texture_id(ctx),
+                        max_maintain_ar(ui.available_size(), self.image.size_vec2()),
+                    )
+                );
+            });
+        });
+    }
+}
+
+fn max_maintain_ar(available: Vec2, image: Vec2) -> Vec2 {
+    let frame_ar = available.y / available.x;
+    let image_ar = image.y / image.x;
+    if (frame_ar > image_ar) {
+        egui::Vec2::new(available.x, available.x * image_ar)
+    } else {
+        egui::Vec2::new(available.y / image_ar, available.y)
     }
 }
