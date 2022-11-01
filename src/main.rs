@@ -5,6 +5,7 @@ use eframe::egui;
 use egui_extras::RetainedImage;
 use egui::ColorImage;
 use egui::Vec2;
+use std::fs;
 use std::path::Path;
 
 fn main() {
@@ -16,20 +17,24 @@ fn main() {
     eframe::run_native(
         "Show an image with eframe/egui",
         options,
-        Box::new(|_cc| Box::new(MyApp::default())),
+        Box::new(|_cc| Box::new(LwPv::default())),
     );
 }
 
-struct MyApp {
+struct LwPv {
     image: RetainedImage,
+    image_path: String,
 }
 
-impl Default for MyApp {
+impl Default for LwPv {
     fn default() -> Self {
         Self {
             image: RetainedImage::from_color_image(
                 "image",
                 load_image_from_path(Path::new("C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg")).unwrap(),
+            ),
+            image_path: String::from(
+                "C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg"
             ),
         }
     }
@@ -57,7 +62,7 @@ fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageE
     ))
 }
 
-impl eframe::App for MyApp {
+impl eframe::App for LwPv {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
@@ -68,6 +73,32 @@ impl eframe::App for MyApp {
                     )
                 );
             });
+            if ui.input().key_pressed(egui::Key::ArrowRight) {
+                println!("right");
+                match fs::read_dir("C:\\Users\\Tom\\Pictures\\写真\\") {
+                    Err(why) => println!("! {:?}", why.kind()),
+                    Ok(paths) => {
+                        let mut found = false;
+                        for path in paths {
+                            if found {
+                                self.image = RetainedImage::from_color_image(
+                                    "image",
+                                    load_image_from_path(
+                                        path.unwrap().path().as_path()
+                                    ).unwrap(),
+                                );
+                                self.image_path = path.unwrap().path().as_path().to_str().unwrap().to_string();
+                                break;
+                            } else if path.unwrap().path() == Path::new(&self.image_path) {
+                                found = true;
+                            }
+                        }
+                    },
+                }
+            }
+            if ui.input().key_pressed(egui::Key::ArrowLeft) {
+                println!("left");
+            }
         });
     }
 }
@@ -75,7 +106,7 @@ impl eframe::App for MyApp {
 fn max_maintain_ar(available: Vec2, image: Vec2) -> Vec2 {
     let frame_ar = available.y / available.x;
     let image_ar = image.y / image.x;
-    if (frame_ar > image_ar) {
+    if frame_ar > image_ar {
         egui::Vec2::new(available.x, available.x * image_ar)
     } else {
         egui::Vec2::new(available.y / image_ar, available.y)
