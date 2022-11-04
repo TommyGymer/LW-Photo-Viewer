@@ -42,6 +42,9 @@ impl Default for LwPv {
     }
 }
 
+//https://crates.io/crates/turbojpeg
+//https://crates.io/crates/spng
+
 fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
     let mut start = Instant::now();
     let file = image::io::Reader::open(path)?;
