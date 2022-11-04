@@ -6,7 +6,9 @@ use egui_extras::RetainedImage;
 use egui::ColorImage;
 use egui::Vec2;
 use std::fs;
+use std::iter::Inspect;
 use std::path::Path;
+use std::time::Instant;
 
 fn main() {
     let options = eframe::NativeOptions {
@@ -41,10 +43,19 @@ impl Default for LwPv {
 }
 
 fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
-    let image = image::io::Reader::open(path)?.decode()?;
+    let mut start = Instant::now();
+    let file = image::io::Reader::open(path)?;
+    println!("File read: {:?}", start.elapsed());
+    start = Instant::now();
+    let image = file.decode()?;
+    println!("Image decoded: {:?}", start.elapsed());
+    start = Instant::now();
     let size = [image.width() as _, image.height() as _];
     let image_buffer = image.to_rgba8();
+    println!("To rgba: {:?}", start.elapsed());
+    start = Instant::now();
     let pixels = image_buffer.as_flat_samples();
+    println!("To samples: {:?}", start.elapsed());
     Ok(egui::ColorImage::from_rgba_unmultiplied(
         size,
         pixels.as_slice(),
@@ -79,17 +90,18 @@ impl eframe::App for LwPv {
                     Err(why) => println!("! {:?}", why.kind()),
                     Ok(paths) => {
                         let mut found = false;
-                        for path in paths {
+                        let vec_paths: Vec<fs::DirEntry> = paths.collect::<Result<Vec<_>, _>>().unwrap();
+                        for path in vec_paths {
                             if found {
                                 self.image = RetainedImage::from_color_image(
                                     "image",
                                     load_image_from_path(
-                                        path.unwrap().path().as_path()
+                                        path.path().as_path()
                                     ).unwrap(),
                                 );
-                                self.image_path = path.unwrap().path().as_path().to_str().unwrap().to_string();
+                                self.image_path = path.path().as_path().to_str().unwrap().to_string();
                                 break;
-                            } else if path.unwrap().path() == Path::new(&self.image_path) {
+                            } else if path.path() == Path::new(&self.image_path) {
                                 found = true;
                             }
                         }
@@ -98,6 +110,28 @@ impl eframe::App for LwPv {
             }
             if ui.input().key_pressed(egui::Key::ArrowLeft) {
                 println!("left");
+                match fs::read_dir("C:\\Users\\Tom\\Pictures\\写真\\") {
+                    Err(why) => println!("! {:?}", why.kind()),
+                    Ok(paths) => {
+                        let mut found = false;
+                        let vec_paths: Vec<fs::DirEntry> = paths.collect::<Result<Vec<_>, _>>().unwrap();
+                        for i in 1..=vec_paths.len() {
+                            let path = vec_paths[vec_paths.len() - i].path();
+                            if found {
+                                self.image = RetainedImage::from_color_image(
+                                    "image",
+                                    load_image_from_path(
+                                        path.as_path()
+                                    ).unwrap(),
+                                );
+                                self.image_path = path.as_path().to_str().unwrap().to_string();
+                                break;
+                            } else if path == Path::new(&self.image_path) {
+                                found = true;
+                            }
+                        }
+                    },
+                }
             }
         });
     }
