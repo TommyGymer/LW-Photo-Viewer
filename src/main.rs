@@ -3,10 +3,8 @@
 // use image::io::Reader as ImageReader;
 use eframe::egui;
 use egui_extras::RetainedImage;
-use egui::ColorImage;
 use egui::Vec2;
 use std::fs;
-use std::iter::Inspect;
 use std::path::Path;
 use std::time::Instant;
 
@@ -42,39 +40,45 @@ impl Default for LwPv {
     }
 }
 
-//https://crates.io/crates/turbojpeg
-//https://crates.io/crates/spng
-
 fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
     let mut start = Instant::now();
+
     let file = image::io::Reader::open(path)?;
+
     println!("File read: {:?}", start.elapsed());
     start = Instant::now();
+
     let image = file.decode()?;
+
     println!("Image decoded: {:?}", start.elapsed());
     start = Instant::now();
+
     let size = [image.width() as _, image.height() as _];
     let image_buffer = image.to_rgba8();
+
     println!("To rgba: {:?}", start.elapsed());
     start = Instant::now();
+
     let pixels = image_buffer.as_flat_samples();
+
     println!("To samples: {:?}", start.elapsed());
+
     Ok(egui::ColorImage::from_rgba_unmultiplied(
         size,
         pixels.as_slice(),
     ))
 }
 
-fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageError> {
-    let image = image::load_from_memory(image_data)?;
-    let size = [image.width() as _, image.height() as _];
-    let image_buffer = image.to_rgba8();
-    let pixels = image_buffer.as_flat_samples();
-    Ok(ColorImage::from_rgba_unmultiplied(
-        size,
-        pixels.as_slice(),
-    ))
-}
+// fn load_image_from_memory(image_data: &[u8]) -> Result<ColorImage, image::ImageError> {
+//     let image = image::load_from_memory(image_data)?;
+//     let size = [image.width() as _, image.height() as _];
+//     let image_buffer = image.to_rgba8();
+//     let pixels = image_buffer.as_flat_samples();
+//     Ok(ColorImage::from_rgba_unmultiplied(
+//         size,
+//         pixels.as_slice(),
+//     ))
+// }
 
 impl eframe::App for LwPv {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
