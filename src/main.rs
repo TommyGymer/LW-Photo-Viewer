@@ -4,11 +4,14 @@
 use eframe::egui;
 use egui_extras::RetainedImage;
 use egui::Vec2;
-use std::fs;
+use std::{fs, env};
 use std::path::Path;
 use std::time::Instant;
 
 fn main() {
+    let args: Vec<String> = env::args().collect();
+    dbg!(args);
+
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1024.0, 900.0)),
         ..Default::default()
@@ -48,7 +51,11 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     println!("File read: {:?}", start.elapsed());
     start = Instant::now();
 
-    let image = file.decode()?;
+    let image = match path.extension() {
+        Some(ext) => file.decode()?,
+        None => file.decode()?,
+    };
+    
 
     println!("Image decoded: {:?}", start.elapsed());
     start = Instant::now();
