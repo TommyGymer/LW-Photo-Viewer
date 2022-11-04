@@ -1006,6 +1006,7 @@ dependencies = [
  "egui_extras",
  "image",
  "qoi",
+ "rayon",
  "spng",
  "turbojpeg",
 ]

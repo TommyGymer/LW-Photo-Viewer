@@ -2,10 +2,13 @@
 
 // use image::io::Reader as ImageReader;
 use eframe::egui;
+use eframe::epaint::Color32;
 use egui_extras::RetainedImage;
 use egui::Vec2;
 use image::{ImageBuffer, Rgba};
-use qoi::{decode_to_buf, decode_to_vec};
+use qoi::decode_to_vec;
+use rayon::iter::ParallelIterator;
+use rayon::slice::ParallelSlice;
 use std::{fs, env};
 use std::path::Path;
 use std::time::Instant;
@@ -100,7 +103,7 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     start = Instant::now();
 
     //consumes 4 bytes at a time
-    let result = Ok(egui::ColorImage::from_rgba_unmultiplied(
+    let result = Ok(from_rgba_unmultiplied(
         size,
         pixels.as_slice(),
     ));
@@ -108,6 +111,15 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     println!("To egui image: {:?}", start.elapsed());
 
     result
+}
+
+pub fn from_rgba_unmultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
+    assert_eq!(size[0] * size[1] * 4, rgba.len());
+    let pixels = rgba
+        .par_chunks_exact(4)
+        .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
+        .collect();
+    egui::ColorImage { size, pixels }
 }
 
 impl eframe::App for LwPv {
