@@ -9,7 +9,8 @@ edition = "2021"
 image = "0.24.3"
 eframe = "0.19.0"
 egui_extras = { version = "0.19.0", features = ["image"] }
-turbojpeg = {version = "0.5.2", features = ["image"]}
 spng = "0.1.0"
+turbojpeg = {version = "0.5", features = ["image"]}
+qoi = "0.4.1"
 
 [dev-dependencies]
