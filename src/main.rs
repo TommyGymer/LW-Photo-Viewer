@@ -5,18 +5,25 @@ use eframe::egui;
 use eframe::epaint::Color32;
 use egui_extras::RetainedImage;
 use egui::Vec2;
-use image::{ImageBuffer, Rgba};
+use image::error::{DecodingError, ImageFormatHint};
+use image::{Rgba, Rgb};
 use qoi::decode_to_vec;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
 use std::{fs, env};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::io::Cursor;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    dbg!(args);
+    dbg!(&args);
+
+    let path: String = if args.len() == 1 {
+        String::from("C:\\Users\\Tom\\Pictures\\写真\\312098.jpg")
+    } else {
+        args[1].clone()
+    };
 
     let options = eframe::NativeOptions {
         initial_window_size: Some(egui::vec2(1024.0, 900.0)),
@@ -26,13 +33,14 @@ fn main() {
     eframe::run_native(
         "Show an image with eframe/egui",
         options,
-        Box::new(|_cc| Box::new(LwPv::default())),
+        Box::new(|_cc| Box::new(LwPv::set_paths(path))),
     );
 }
 
 struct LwPv {
     image: RetainedImage,
     image_path: String,
+    folder: String,
 }
 
 impl Default for LwPv {
@@ -45,81 +53,185 @@ impl Default for LwPv {
             image_path: String::from(
                 "C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg"
             ),
+            folder: String::from(
+                "C:\\Users\\Tom\\Pictures\\写真\\"
+            ),
+        }
+    }
+}
+
+impl LwPv {
+    fn set_paths(path: String) -> Self {
+        let parent = String::from(Path::new(&path).parent().unwrap().to_str().unwrap());
+        Self {
+            image: RetainedImage::from_color_image(
+                "image",
+                load_image_from_path(Path::new(&path)).unwrap(),
+            ),
+            image_path: path,
+            folder: parent,
         }
     }
 }
 
 fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, image::ImageError> {
-    let mut start = Instant::now();
-
+    let start = Instant::now();
+    println!("{:?}", path.as_os_str());
     let file: &[u8] = &(fs::read(path).unwrap());
 
-    println!("File read: {:?}", start.elapsed());
-    start = Instant::now();
-
-    let image_buffer: ImageBuffer<Rgba<u8>, Vec<u8>> = match path.extension() {
+    let result = match path.extension() {
         Some(ext) => {
-            println!("{:?}", ext.to_str().unwrap());
             match ext.to_str().unwrap() {
                 "jpg" => {
                     let tmp: image::RgbaImage = turbojpeg::decompress_image(file).expect("could not read jpg");
-                    tmp
+                    Ok(color_image_from_rgba_image_buffer(tmp)?)
                 },
+                "jfif" => {
+                    let tmp: image::RgbaImage = turbojpeg::decompress_image(file).expect("could not read jfif");
+                    Ok(color_image_from_rgba_image_buffer(tmp)?)
+                }
                 "png" => {
                     let cursor = Cursor::new(file);
                     let decoder = spng::Decoder::new(cursor);
                     let (info, mut reader) = decoder.read_info().expect("could not read info");
+                    
                     let mut out: Vec<u8> = vec![0; reader.output_buffer_size()];
-                    reader.next_frame(&mut out).expect("could not decode image");
-
-                    image::ImageBuffer::from_raw(
-                        info.width as u32,
-                        info.height as u32,
-                        out,
-                    ).expect("could not find frame")
+                    reader.next_frame(&mut out).unwrap();
+                    
+                    match info.color_type {
+                        spng::ColorType::Truecolor => {
+                            color_image_from_rgb_image_buffer(
+                                rgb_image_from_raw(
+                                    info.width,
+                                    info.height,
+                                    out,
+                                    path.to_path_buf(),
+                                )?
+                            )
+                        },
+                        spng::ColorType::TruecolorAlpha => {
+                            color_image_from_rgba_image_buffer(
+                                rgba_image_from_raw(
+                                    info.width,
+                                    info.height,
+                                    out,
+                                    path.to_path_buf(),
+                                )?
+                            )
+                        },
+                        _ => panic!("not implemented grayscale png"),
+                    }
                 }
                 "qoi" => {
                     let (header, decoded) = decode_to_vec(file).expect("could not read qoi");
-                    image::ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
-                        header.width as u32,
-                        header.height as u32,
-                        decoded,
-                    ).expect("could not read qoi")
+                    match header.channels {
+                        qoi::Channels::Rgb => {
+                            color_image_from_rgb_image_buffer(
+                                rgb_image_from_raw(
+                                    header.width,
+                                    header.height,
+                                    decoded,
+                                    path.to_path_buf(),
+                                )?
+                            )
+                        },
+                        qoi::Channels::Rgba => {
+                            color_image_from_rgba_image_buffer(
+                                rgba_image_from_raw(
+                                    header.width,
+                                    header.height,
+                                    decoded,
+                                    path.to_path_buf(),
+                                )?
+                            )
+                        },
+                    }
                 }
-                _ => image::load_from_memory(file)?.to_rgba8(),
+                _ => color_image_from_rgba_image_buffer(
+                        image::load_from_memory(file)?
+                            .to_rgba8()
+                    ),
             }
         },
-        None => image::load_from_memory(file)?.to_rgba8(),
+        None => Ok(
+            color_image_from_rgba_image_buffer(
+                image::load_from_memory(file)?
+                    .to_rgba8()
+            )?
+        ),
     };
-    
-    println!("Image decoded: {:?}", start.elapsed());
-    start = Instant::now();
-
-    let size = [image_buffer.width() as _, image_buffer.height() as _];
-
-    let pixels = image_buffer.as_flat_samples();
-
-    println!("To samples: {:?}", start.elapsed());
-    start = Instant::now();
-
-    //consumes 4 bytes at a time
-    let result = Ok(from_rgba_unmultiplied(
-        size,
-        pixels.as_slice(),
-    ));
-
-    println!("To egui image: {:?}", start.elapsed());
-
+    println!("Total: {:?}", start.elapsed());
     result
 }
 
-pub fn from_rgba_unmultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
+fn rgb_image_from_raw(width: u32, height: u32, data: Vec<u8>, ext: PathBuf) -> Result<image::RgbImage, image::ImageError> {
+    let start = Instant::now();
+    let result = match image::ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
+        width,
+        height,
+        data,
+    ) {
+        Some(image) => Ok(image),
+        None => Err(image::ImageError::Decoding(DecodingError::new(ImageFormatHint::PathExtension(ext), "Raw image bytes did not fit the image container"))),
+    };
+    println!("RGB image from raw: {:?}", start.elapsed());
+    result
+}
+
+fn rgba_image_from_raw(width: u32, height: u32, data: Vec<u8>, ext: PathBuf) -> Result<image::RgbaImage, image::ImageError> {
+    let start = Instant::now();
+    let result = match image::ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(
+        width,
+        height,
+        data,
+    ) {
+        Some(image) => Ok(image),
+        None => Err(image::ImageError::Decoding(DecodingError::new(ImageFormatHint::PathExtension(ext), "Raw image bytes did not fit the image container"))),
+    };
+    println!("RGBA image from raw: {:?}", start.elapsed());
+    result
+}
+
+fn from_rgb_unmultiplied(size: [usize; 2], rgb: &[u8]) -> egui::ColorImage {
+    assert_eq!(size[0] * size[1] * 3, rgb.len());
+    let pixels = rgb
+        .par_chunks_exact(3)
+        .map(|p| Color32::from_rgb(p[0], p[1], p[2]))
+        .collect();
+    egui::ColorImage { size, pixels }
+}
+
+fn from_rgba_unmultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
     assert_eq!(size[0] * size[1] * 4, rgba.len());
     let pixels = rgba
         .par_chunks_exact(4)
         .map(|p| Color32::from_rgba_unmultiplied(p[0], p[1], p[2], p[3]))
         .collect();
     egui::ColorImage { size, pixels }
+}
+
+fn color_image_from_rgb_image_buffer(image: image::RgbImage) -> Result<egui::ColorImage, image::ImageError>{
+    let start = Instant::now();
+    let size = [image.width() as _, image.height() as _];
+    let pixels = image.as_flat_samples();
+    let result = Ok(from_rgb_unmultiplied(
+        size,
+        pixels.as_slice(),
+    ));
+    println!("egui RGB ColorImage: {:?}", start.elapsed());
+    result
+}
+
+fn color_image_from_rgba_image_buffer(image: image::RgbaImage) -> Result<egui::ColorImage, image::ImageError>{
+    let start = Instant::now();
+    let size = [image.width() as _, image.height() as _];
+    let pixels = image.as_flat_samples();
+    let result = Ok(from_rgba_unmultiplied(
+        size,
+        pixels.as_slice(),
+    ));
+    println!("egui RGBA ColorImage: {:?}", start.elapsed());
+    result
 }
 
 impl eframe::App for LwPv {
@@ -134,23 +246,28 @@ impl eframe::App for LwPv {
                 );
             });
             if ui.input().key_pressed(egui::Key::ArrowRight) {
-                println!("right");
-                match fs::read_dir("C:\\Users\\Tom\\Pictures\\写真\\") {
+                match fs::read_dir(Path::new(&self.folder)) {
                     Err(why) => println!("! {:?}", why.kind()),
                     Ok(paths) => {
                         let mut found = false;
                         let vec_paths: Vec<fs::DirEntry> = paths.collect::<Result<Vec<_>, _>>().unwrap();
                         for path in vec_paths {
                             if found {
+                                self.image_path = path.path().as_path().to_str().unwrap().to_string();
                                 self.image = RetainedImage::from_color_image(
                                     "image",
-                                    load_image_from_path(
+                                    match load_image_from_path(
                                         path.path().as_path()
-                                    ).unwrap(),
+                                    ) {
+                                        Ok(image) => image,
+                                        Err(err) => {
+                                            println!("{:?}", err);
+                                            break;
+                                        },
+                                    },
                                 );
-                                self.image_path = path.path().as_path().to_str().unwrap().to_string();
                                 break;
-                            } else if path.path() == Path::new(&self.image_path) {
+                            } else if path.path().as_path() == Path::new(&self.image_path) {
                                 found = true;
                             }
                         }
@@ -158,8 +275,7 @@ impl eframe::App for LwPv {
                 }
             }
             if ui.input().key_pressed(egui::Key::ArrowLeft) {
-                println!("left");
-                match fs::read_dir("C:\\Users\\Tom\\Pictures\\写真\\") {
+                match fs::read_dir(Path::new(&self.folder)) {
                     Err(why) => println!("! {:?}", why.kind()),
                     Ok(paths) => {
                         let mut found = false;
@@ -167,15 +283,21 @@ impl eframe::App for LwPv {
                         for i in 1..=vec_paths.len() {
                             let path = vec_paths[vec_paths.len() - i].path();
                             if found {
+                                self.image_path = path.as_path().to_str().unwrap().to_string();
                                 self.image = RetainedImage::from_color_image(
                                     "image",
-                                    load_image_from_path(
+                                    match load_image_from_path(
                                         path.as_path()
-                                    ).unwrap(),
+                                    ) {
+                                        Ok(image) => image,
+                                        Err(err) => {
+                                            println!("{:?}", err);
+                                            break;
+                                        },
+                                    },
                                 );
-                                self.image_path = path.as_path().to_str().unwrap().to_string();
                                 break;
-                            } else if path == Path::new(&self.image_path) {
+                            } else if path.as_path() == Path::new(&self.image_path) {
                                 found = true;
                             }
                         }
