@@ -20,7 +20,7 @@ fn main() {
     dbg!(&args);
 
     let path: String = if args.len() == 1 {
-        String::from("C:\\Users\\Tom\\Pictures\\写真\\312098.jpg")
+        String::from("C:\\Users\\Tom\\Pictures\\St Andrews\\20220902_083558.jpg")
     } else {
         args[1].clone()
     };
@@ -83,12 +83,12 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
         Some(ext) => {
             match ext.to_str().unwrap() {
                 "jpg" => {
-                    let tmp: image::RgbaImage = turbojpeg::decompress_image(file).expect("could not read jpg");
-                    Ok(color_image_from_rgba_image_buffer(tmp)?)
+                    let tmp: image::RgbImage = decode_jpg(file, path.to_path_buf())?;
+                    Ok(color_image_from_rgb_image_buffer(tmp)?)
                 },
                 "jfif" => {
-                    let tmp: image::RgbaImage = turbojpeg::decompress_image(file).expect("could not read jfif");
-                    Ok(color_image_from_rgba_image_buffer(tmp)?)
+                    let tmp: image::RgbImage = decode_jpg(file, path.to_path_buf())?;
+                    Ok(color_image_from_rgb_image_buffer(tmp)?)
                 }
                 "png" => {
                     let cursor = Cursor::new(file);
@@ -164,6 +164,13 @@ fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, imag
     result
 }
 
+fn decode_jpg(file: &[u8], ext: PathBuf) -> Result<image::RgbImage, image::ImageError> {
+    match turbojpeg::decompress_image(file) {
+        Ok(tmp) => Ok(tmp),
+        Err(err) => Err(image::ImageError::Decoding(DecodingError::new(ImageFormatHint::PathExtension(ext), err))),
+    }
+}
+
 fn rgb_image_from_raw(width: u32, height: u32, data: Vec<u8>, ext: PathBuf) -> Result<image::RgbImage, image::ImageError> {
     let start = Instant::now();
     let result = match image::ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(
@@ -236,6 +243,7 @@ fn color_image_from_rgba_image_buffer(image: image::RgbaImage) -> Result<egui::C
 
 impl eframe::App for LwPv {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        _frame.set_window_title(&self.image_path);
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.centered_and_justified(|ui| {
                 ui.add(

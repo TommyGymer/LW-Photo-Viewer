@@ -13,5 +13,6 @@ spng = "0.1.0"
 turbojpeg = {version = "0.5", features = ["image"]}
 qoi = "0.4.1"
 rayon = "1.5.3"
+kamadak-exif = "0.5.5"
 
 [dev-dependencies]
