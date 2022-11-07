@@ -15,6 +15,8 @@ use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::io::Cursor;
 
+//https://learn.microsoft.com/en-gb/samples/microsoft/windows-classic-samples/recipethumbnailprovider/
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     dbg!(&args);
