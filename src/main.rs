@@ -22,7 +22,7 @@ fn main() {
     dbg!(&args);
 
     let path: String = if args.len() == 1 {
-        String::from("C:\\Users\\Tom\\Pictures\\St Andrews\\20220902_083558.jpg")
+        String::from("./img/no_image.png")
     } else {
         args[1].clone()
     };
@@ -33,7 +33,7 @@ fn main() {
     };
     
     eframe::run_native(
-        "Show an image with eframe/egui",
+        "LW Photo Viewer",
         options,
         Box::new(|_cc| Box::new(LwPv::set_paths(path))),
     );
@@ -50,13 +50,13 @@ impl Default for LwPv {
         Self {
             image: RetainedImage::from_color_image(
                 "image",
-                load_image_from_path(Path::new("C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg")).unwrap(),
+                load_image_from_path(Path::new("./img/no_image.png")).unwrap(),
             ),
             image_path: String::from(
-                "C:\\Users\\Tom\\Pictures\\写真\\1116473.jpg"
+                "./img/no_image.png"
             ),
             folder: String::from(
-                "C:\\Users\\Tom\\Pictures\\写真\\"
+                "./img/"
             ),
         }
     }
