@@ -26,18 +26,7 @@ fn main() {
     dbg!(&args);
 
     // IInitializeWithStream::Initialize(&self, pstream, grfmode);
-
-    let mut content = String::from("");
-    args.iter()
-        .for_each(|i| {
-            content.push_str(i.to_str().unwrap_or("unknown char string"));
-            content.push_str(" ");
-    });
-
-    Notification::new()
-        .summary("LW Photoviewer")
-        .body(&content)
-        .show().unwrap();
+    // IThumbnailCache::GetThumbnail(&self, pshellitem, cxyrequestedthumbsize, flags, ppvthumb, poutflags, pthumbnailid);
 
     let path: String = if args.len() == 1 {
         String::from("./img/no_image.png")
@@ -55,10 +44,6 @@ fn main() {
         options,
         Box::new(|_cc| Box::new(LwPv::set_paths(path))),
     );
-
-    // unsafe {
-    //     IThumbnailCache::GetThumbnail(&self, pshellitem, cxyrequestedthumbsize, flags, ppvthumb, poutflags, pthumbnailid);
-    // }
 }
 
 struct LwPv {
