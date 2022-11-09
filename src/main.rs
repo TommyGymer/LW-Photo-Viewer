@@ -10,21 +10,39 @@ use image::{Rgba, Rgb};
 use qoi::decode_to_vec;
 use rayon::iter::ParallelIterator;
 use rayon::slice::ParallelSlice;
+use std::ffi::OsString;
 use std::{fs, env};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::io::Cursor;
+use windows::Win32::UI::Shell::IThumbnailCache;
+use windows::Win32::UI::Shell::PropertiesSystem::IInitializeWithStream;
+use notify_rust::Notification;
 
 //https://learn.microsoft.com/en-gb/samples/microsoft/windows-classic-samples/recipethumbnailprovider/
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
+    let args: Vec<OsString> = env::args_os().collect();
     dbg!(&args);
+
+    // IInitializeWithStream::Initialize(&self, pstream, grfmode);
+
+    let mut content = String::from("");
+    args.iter()
+        .for_each(|i| {
+            content.push_str(i.to_str().unwrap_or("unknown char string"));
+            content.push_str(" ");
+    });
+
+    Notification::new()
+        .summary("LW Photoviewer")
+        .body(&content)
+        .show().unwrap();
 
     let path: String = if args.len() == 1 {
         String::from("./img/no_image.png")
     } else {
-        args[1].clone()
+        String::from(args[1].to_str().unwrap())
     };
 
     let options = eframe::NativeOptions {
@@ -37,6 +55,10 @@ fn main() {
         options,
         Box::new(|_cc| Box::new(LwPv::set_paths(path))),
     );
+
+    // unsafe {
+    //     IThumbnailCache::GetThumbnail(&self, pshellitem, cxyrequestedthumbsize, flags, ppvthumb, poutflags, pthumbnailid);
+    // }
 }
 
 struct LwPv {
@@ -202,6 +224,7 @@ fn rgba_image_from_raw(width: u32, height: u32, data: Vec<u8>, ext: PathBuf) -> 
 }
 
 fn from_rgb_unmultiplied(size: [usize; 2], rgb: &[u8]) -> egui::ColorImage {
+    //TODO: try Vec.concat with larger consume sizes
     assert_eq!(size[0] * size[1] * 3, rgb.len());
     let pixels = rgb
         .par_chunks_exact(3)
@@ -211,6 +234,7 @@ fn from_rgb_unmultiplied(size: [usize; 2], rgb: &[u8]) -> egui::ColorImage {
 }
 
 fn from_rgba_unmultiplied(size: [usize; 2], rgba: &[u8]) -> egui::ColorImage {
+    //TODO: try Vec.concat with larger consume sizes
     assert_eq!(size[0] * size[1] * 4, rgba.len());
     let pixels = rgba
         .par_chunks_exact(4)
