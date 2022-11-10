@@ -17,7 +17,7 @@ use std::time::Instant;
 use std::io::Cursor;
 use windows::Win32::UI::Shell::IThumbnailCache;
 use windows::Win32::UI::Shell::PropertiesSystem::IInitializeWithStream;
-use notify_rust::Notification;
+// use notify_rust::Notification;
 
 //https://learn.microsoft.com/en-gb/samples/microsoft/windows-classic-samples/recipethumbnailprovider/
 
@@ -31,7 +31,7 @@ fn main() {
     let path: String = if args.len() == 1 {
         String::from("./img/no_image.png")
     } else {
-        String::from(args[1].to_str().unwrap())
+        String::from(args[1].to_str().unwrap_or("./img/no_image.png"))
     };
 
     let options = eframe::NativeOptions {
