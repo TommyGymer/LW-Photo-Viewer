@@ -1282,6 +1282,7 @@ dependencies = [
  "rayon",
  "spng",
  "turbojpeg",
+ "winapi",
  "windows 0.43.0",
 ]
 

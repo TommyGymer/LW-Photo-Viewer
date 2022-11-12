@@ -15,6 +15,7 @@ use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use std::{env, fs};
+
 use windows::Win32::UI::Shell::IThumbnailCache;
 use windows::Win32::UI::Shell::PropertiesSystem::IInitializeWithStream;
 // use notify_rust::Notification;
