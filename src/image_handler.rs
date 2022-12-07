@@ -26,12 +26,14 @@ pub fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, 
                 path.to_path_buf(),
             )?)?),
             "png" => {
+                let png_start = Instant::now();
                 let cursor = Cursor::new(file);
                 let decoder = spng::Decoder::new(cursor);
                 let (info, mut reader) = decoder.read_info().expect("could not read info");
 
                 let mut out: Vec<u8> = vec![0; reader.output_buffer_size()];
                 reader.next_frame(&mut out).unwrap();
+                println!("PNG decoded: {:?}", png_start.elapsed());
 
                 match info.color_type {
                     spng::ColorType::Truecolor => color_image_from_rgb_image_buffer(
@@ -40,24 +42,32 @@ pub fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, 
                     spng::ColorType::TruecolorAlpha => color_image_from_rgba_image_buffer(
                         rgba_image_from_raw(info.width, info.height, out, path.to_path_buf())?,
                     ),
-                    _ => panic!("not implemented grayscale png"),
+                    _ => panic!("not implemented grayscale png; this should probably return an error"),
                 }
             }
             "qoi" => {
+                let qoi_start = Instant::now();
                 let (header, decoded) = decode_to_vec(file).expect("could not read qoi");
+                println!("QOI decoded: {:?}", qoi_start.elapsed());
                 match header.channels {
-                    qoi::Channels::Rgb => color_image_from_rgb_image_buffer(rgb_image_from_raw(
-                        header.width,
-                        header.height,
-                        decoded,
-                        path.to_path_buf(),
-                    )?),
-                    qoi::Channels::Rgba => color_image_from_rgba_image_buffer(rgba_image_from_raw(
-                        header.width,
-                        header.height,
-                        decoded,
-                        path.to_path_buf(),
-                    )?),
+                    qoi::Channels::Rgb => {
+                        let raw = rgb_image_from_raw(
+                            header.width,
+                            header.height,
+                            decoded,
+                            path.to_path_buf(),
+                        )?;
+                        color_image_from_rgb_image_buffer(raw)
+                    },
+                    qoi::Channels::Rgba => {
+                        let raw = rgba_image_from_raw(
+                            header.width,
+                            header.height,
+                            decoded,
+                            path.to_path_buf(),
+                        )?;
+                        color_image_from_rgba_image_buffer(raw)
+                    },
                 }
             }
             _ => color_image_from_rgba_image_buffer(image::load_from_memory(file)?.to_rgba8()),
@@ -66,6 +76,7 @@ pub fn load_image_from_path(path: &std::path::Path) -> Result<egui::ColorImage, 
             image::load_from_memory(file)?.to_rgba8(),
         )?),
     };
+
     println!("Total: {:?}", start.elapsed());
     result
 }
@@ -86,16 +97,13 @@ pub fn rgb_image_from_raw(
     data: Vec<u8>,
     ext: PathBuf,
 ) -> Result<image::RgbImage, image::ImageError> {
-    let start = Instant::now();
-    let result = match image::ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(width, height, data) {
+    match image::ImageBuffer::<Rgb<u8>, Vec<u8>>::from_raw(width, height, data) {
         Some(image) => Ok(image),
         None => Err(image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::PathExtension(ext),
             "Raw image bytes did not fit the image container",
         ))),
-    };
-    println!("RGB image from raw: {:?}", start.elapsed());
-    result
+    }
 }
 
 pub fn rgba_image_from_raw(
@@ -104,16 +112,13 @@ pub fn rgba_image_from_raw(
     data: Vec<u8>,
     ext: PathBuf,
 ) -> Result<image::RgbaImage, image::ImageError> {
-    let start = Instant::now();
-    let result = match image::ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(width, height, data) {
+    match image::ImageBuffer::<Rgba<u8>, Vec<u8>>::from_raw(width, height, data) {
         Some(image) => Ok(image),
         None => Err(image::ImageError::Decoding(DecodingError::new(
             ImageFormatHint::PathExtension(ext),
             "Raw image bytes did not fit the image container",
         ))),
-    };
-    println!("RGBA image from raw: {:?}", start.elapsed());
-    result
+    }
 }
 
 pub fn from_rgb_unmultiplied(size: [usize; 2], rgb: &[u8]) -> egui::ColorImage {
@@ -143,7 +148,7 @@ pub fn color_image_from_rgb_image_buffer(
     let size = [image.width() as _, image.height() as _];
     let pixels = image.as_flat_samples();
     let result = Ok(from_rgb_unmultiplied(size, pixels.as_slice()));
-    println!("egui RGB ColorImage: {:?}", start.elapsed());
+    println!("ColorImage from RGB image: {:?}", start.elapsed());
     result
 }
 
@@ -154,6 +159,6 @@ pub fn color_image_from_rgba_image_buffer(
     let size = [image.width() as _, image.height() as _];
     let pixels = image.as_flat_samples();
     let result = Ok(from_rgba_unmultiplied(size, pixels.as_slice()));
-    println!("egui RGBA ColorImage: {:?}", start.elapsed());
+    println!("ColorImage from RGBA image: {:?}", start.elapsed());
     result
 }

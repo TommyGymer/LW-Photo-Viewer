@@ -4,11 +4,12 @@ mod image_handler;
 
 // use image::io::Reader as ImageReader;
 use eframe::egui;
+use eframe::epaint::Pos2;
 use egui::Vec2;
 use egui_extras::RetainedImage;
 use image_handler::load_image_from_path;
 use std::ffi::OsString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{env, fs};
 
 fn main() {
@@ -36,10 +37,16 @@ fn main() {
     );
 }
 
+enum Direction {
+    DEC,
+    INC,
+}
+
 struct LwPv {
     image: RetainedImage,
     image_path: String,
     folder: String,
+    press_origin: Pos2,
 }
 
 impl Default for LwPv {
@@ -51,6 +58,7 @@ impl Default for LwPv {
             ),
             image_path: String::from("./img/no_image.png"),
             folder: String::from("./img/"),
+            press_origin: Pos2::ZERO,
         }
     }
 }
@@ -65,6 +73,7 @@ impl LwPv {
             ),
             image_path: path,
             folder: parent,
+            press_origin: Pos2::ZERO,
         }
     }
 }
@@ -82,73 +91,93 @@ impl eframe::App for LwPv {
                 ));
             });
             if ui.input().key_pressed(egui::Key::ArrowRight) {
-                match fs::read_dir(Path::new(&self.folder)) {
-                    Err(why) => println!("! {:?}", why.kind()),
-                    Ok(paths) => {
-                        let mut found = false;
-                        let vec_paths: Vec<fs::DirEntry> =
-                            paths.collect::<Result<Vec<_>, _>>().unwrap();
-                        for path in vec_paths {
-                            if found {
-                                self.image_path = path
-                                    .path()
-                                    .as_path()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string();
-                                self.image = RetainedImage::from_color_image(
-                                    "image",
-                                    match load_image_from_path(path.path().as_path()) {
-                                        Ok(image) => image,
-                                        Err(err) => {
-                                            println!("{:?}", err);
-                                            break;
-                                        }
-                                    },
-                                );
-                                break;
-                            } else if path.path().as_path() == Path::new(&self.image_path) {
-                                found = true;
-                            }
-                        }
-                    }
-                }
+                image_update(self, &Direction::INC);
             }
             if ui.input().key_pressed(egui::Key::ArrowLeft) {
-                match fs::read_dir(Path::new(&self.folder)) {
-                    Err(why) => println!("! {:?}", why.kind()),
-                    Ok(paths) => {
-                        let mut found = false;
-                        let vec_paths: Vec<fs::DirEntry> =
-                            paths.collect::<Result<Vec<_>, _>>().unwrap();
-                        for i in 1..=vec_paths.len() {
-                            let path = vec_paths[vec_paths.len() - i].path();
-                            if found {
-                                self.image_path = path
-                                    .as_path()
-                                    .to_str()
-                                    .unwrap()
-                                    .to_string();
-                                self.image = RetainedImage::from_color_image(
-                                    "image",
-                                    match load_image_from_path(path.as_path()) {
-                                        Ok(image) => image,
-                                        Err(err) => {
-                                            println!("{:?}", err);
-                                            break;
-                                        }
-                                    },
-                                );
-                                break;
-                            } else if path.as_path() == Path::new(&self.image_path) {
-                                found = true;
-                            }
-                        }
-                    }
+                image_update(self, &Direction::DEC);
+            }
+            if ui.input().pointer.any_down() {
+                self.press_origin = match ui.input().pointer.press_origin() {
+                    Some(pos) => pos,
+                    None => self.press_origin,
+                };
+            }
+            if ui.input().pointer.any_released() {
+                let start = self.press_origin;
+                let end = match ui.input().pointer.interact_pos() {
+                    Some(pos) => pos,
+                    None => return
+                };
+                if start.x > end.x {
+                    image_update(self, &Direction::INC);
+                } else {
+                    image_update(self, &Direction::DEC);
                 }
             }
         });
     }
+}
+
+fn image_update(context: &mut LwPv, direction: &Direction) -> Option<()> {
+    let files = match fs::read_dir(Path::new(&context.folder)) {
+        Ok(paths) => paths,
+        Err(err) => {
+            println!("{:?}", err);
+            return None
+        },
+    };
+
+    let vec_files: Vec<fs::DirEntry> = match files.collect::<Result<Vec<_>, _>>() {
+        Ok(vec_files) => vec_files,
+        Err(err) => {
+            println!("{:?}", err);
+            return None
+        },
+    };
+
+    let mut found = false;
+    for i in 0..vec_files.len() {
+        let index = match direction {
+            Direction::INC => i,
+            Direction::DEC => vec_files.len() - i - 1,
+        };
+        let path = vec_files[index].path();
+
+        if found {
+            context.image = match get_image(&path) {
+                Some(image) => image,
+                None => continue
+            };
+            context.image_path = path_to_string(&path)?;
+            return Some(())
+        } else if path.as_path() == Path::new(&context.image_path) {
+            found = true;
+        }
+    };
+    None
+}
+
+fn path_to_string(path: &PathBuf) -> Option<String> {
+    Some(
+        path.as_path()
+            .to_str()?
+            .to_string()
+    )
+}
+
+fn get_image(path: &PathBuf) -> Option<RetainedImage> {
+    let image = match load_image_from_path(path.as_path()) {
+        Ok(image) => image,
+        Err(err) => {
+            println!("{:?}", err);
+            return None;
+        }
+    };
+
+    Some(RetainedImage::from_color_image(
+        "image",
+        image,
+    ))
 }
 
 fn max_maintain_ar(available: Vec2, image: Vec2) -> Vec2 {

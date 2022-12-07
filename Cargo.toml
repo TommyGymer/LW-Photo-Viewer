@@ -16,16 +16,17 @@ rayon = "1.5.3"
 kamadak-exif = "0.5.5"
 notify-rust = "4"
 winapi = { version = "0.3", features = [ "winbase", "objidlbase", "wingdi", "debugapi" ] }
+log = "0.4"
 
 [dependencies.windows]
 version = "0.43.0"
 features = [
-    "Data_Xml_Dom",
+    "implement",
+    "Win32_System_Com",
+    "Win32_System_SystemServices",
+    "Win32_System_LibraryLoader",
+    "Win32_Graphics_Gdi",
     "Win32_Foundation",
-    "Win32_Security",
-    "Win32_System_Threading",
-    "Win32_UI_WindowsAndMessaging",
     "Win32_UI_Shell",
     "Win32_UI_Shell_PropertiesSystem",
-    "Win32_System_Com",
 ]
