@@ -46,7 +46,7 @@ struct LwPv {
     image: RetainedImage,
     image_path: String,
     folder: String,
-    press_origin: Pos2,
+    press_origin: Option<Pos2>,
 }
 
 impl Default for LwPv {
@@ -58,7 +58,7 @@ impl Default for LwPv {
             ),
             image_path: String::from("./img/no_image.png"),
             folder: String::from("./img/"),
-            press_origin: Pos2::ZERO,
+            press_origin: None,
         }
     }
 }
@@ -73,7 +73,7 @@ impl LwPv {
             ),
             image_path: path,
             folder: parent,
-            press_origin: Pos2::ZERO,
+            press_origin: None,
         }
     }
 }
@@ -97,16 +97,20 @@ impl eframe::App for LwPv {
                 image_update(self, &Direction::DEC);
             }
             if ui.input().pointer.any_down() {
-                self.press_origin = match ui.input().pointer.press_origin() {
-                    Some(pos) => pos,
-                    None => self.press_origin,
-                };
+                if self.press_origin == None {
+                    self.press_origin = match ui.input().pointer.press_origin() {
+                        Some(pos) => Some(pos),
+                        None => self.press_origin,
+                    };
+                }
             }
             if ui.input().any_touches() {
-                self.press_origin = match ui.input().pointer.hover_pos() {
-                    Some(pos) => pos,
-                    None => self.press_origin,
-                };
+                if self.press_origin == None {
+                    self.press_origin = match ui.input().pointer.hover_pos() {
+                        Some(pos) => Some(pos),
+                        None => self.press_origin,
+                    };
+                }
             }
             if ui.input().pointer.any_released() {
                 let start = self.press_origin;
@@ -114,11 +118,12 @@ impl eframe::App for LwPv {
                     Some(pos) => pos,
                     None => return
                 };
-                if start.x > end.x {
+                if start.unwrap().x > end.x {
                     image_update(self, &Direction::INC);
                 } else {
                     image_update(self, &Direction::DEC);
                 }
+                self.press_origin = None;
             }
         });
     }
