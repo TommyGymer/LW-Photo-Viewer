@@ -102,6 +102,12 @@ impl eframe::App for LwPv {
                     None => self.press_origin,
                 };
             }
+            if ui.input().any_touches() {
+                self.press_origin = match ui.input().pointer.hover_pos() {
+                    Some(pos) => pos,
+                    None => self.press_origin,
+                };
+            }
             if ui.input().pointer.any_released() {
                 let start = self.press_origin;
                 let end = match ui.input().pointer.interact_pos() {
