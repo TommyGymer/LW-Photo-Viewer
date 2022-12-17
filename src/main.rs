@@ -125,6 +125,14 @@ impl eframe::App for LwPv {
                 }
                 self.press_origin = None;
             }
+            let scroll_delta = ui.input().scroll_delta;
+            if scroll_delta.y != 0.0  {
+                if scroll_delta.y > 0.0 {
+                    println!("zoom in");
+                } else {
+                    println!("zoom out");
+                }
+            }
         });
     }
 }
