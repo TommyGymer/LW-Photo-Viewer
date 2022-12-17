@@ -118,7 +118,7 @@ impl eframe::App for LwPv {
                     Some(pos) => pos,
                     None => return
                 };
-                if start.unwrap().x > end.x {
+                if start.unwrap().x >= end.x {
                     image_update(self, &Direction::INC);
                 } else {
                     image_update(self, &Direction::DEC);
